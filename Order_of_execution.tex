@@ -1,98 +1,99 @@
-\section{Order of Execution}
+\section{Ordem de Execução}
 \label{sec:order-of-execution}
 
-When discussing Audio Buses in section \ref{sec:audiobus} we hinted at the importance of order of execution. The code below is an expanded version of the filtered noise example from that section. The discussion that follows will explain the basic concept of order of execution, demonstrating why it is important.
+Quando discutimos Canais de Áudio na seção \ref{sec:audiobus} sinalizamos a importância da ordem de execução. O código abaixo é uma versão expandida do exemplo de ruído filtrado daquela seção. A discussão que se segue explicará o conceito básico de ordem de execução, demonstrando porque ele é importante.
+
 
 \begin{lstlisting}[style=SuperCollider-IDE, basicstyle=\scttfamily\footnotesize]
-// Create an audio bus
-~fxBus = Bus.audio(s, 1);
-~masterBus = Bus.audio(s, 1);
-// Create SynthDefs
+// Crie um canal (“bus”) de áudio
+~busEfeitos = Bus.audio(s, 1);
+~busMaster = Bus.audio(s, 1);
+// Criar SynthDefs
 (
-SynthDef("noise", {Out.ar(~fxBus, WhiteNoise.ar(0.5))}).add;
-SynthDef("filter", {Out.ar(~masterBus, BPF.ar(in: In.ar(~fxBus), freq: MouseY.kr(1000, 5000), rq: 0.1))}).add;
-SynthDef("masterOut", {arg amp = 1; Out.ar(0, In.ar(~masterBus) * Lag.kr(amp, 1))}).add;
+SynthDef(“ruido”, {Out.ar(~busEfeitos, WhiteNoise.ar(0.5))}).add;
+SynthDef(“filtro", {Out.ar(~busMaster, BPF.ar(in: In.ar(~busEfeitos), freq: MouseY.kr(1000, 5000), rq: 0.1))}).add;
+SynthDef(“saidaMaster", {arg amp = 1; Out.ar(0, In.ar(~busMaster) * Lag.kr(amp, 1))}).add;
 )
-// Open Node Tree window:
+// Abra a janela Node Tree (“Árvore de Nós”):
 s.plotTree;
-// Play synths (watch Node Tree)
-m = Synth("masterOut");
+// Tocar sintetizadores (observe a Node Tree)
+m = Synth(“saidaMaster”);
 f = Synth("filter");
-n = Synth("noise");
-// Master volume
+n = Synth("ruido");
+// Volume master
 m.set(\amp, 0.1);
 \end{lstlisting}
 
-First, two audio buses assigned to the variables \texttt{$\sim$fxbus} and \texttt{$\sim$masterBus}.
+Primeiro, dois canais de áudio são atribuídos às variáveis \texttt{$\sim$busEfeitos} and \texttt{$\sim$busMaster}.
 
-Second, three \texttt{SynthDef}s are created:
+Segundo, três \texttt{SynthDef}s são criados:
 \begin{itemize}
-\item \texttt{"noise"} is a noise source that sends white noise to an effects bus;
-\item \texttt{"filter"} is a band pass filter which takes its input from the effects bus, and sends the processed sound out to the master bus;
-\item \texttt{"masterOut"} takes in the signal from the master bus and applies a simple volume control to it, sending the final sound with adjusted volume to the loudspeakers.
+\item \texttt{“ruido”} é uma fonte de ruído que manda ruído branco para o canal de efeitos;
+\item \texttt{"filtro”} é um filtro passa-banda que recebe uma entrada do canal de efeitos e envia o som processado para o canal master;
+\item \texttt{“saidaMaster"} recebe sinal do canal master e aplica um controle simples de volume, enviando o som final com o volume ajustado para os alto-falantes.
 \end{itemize}
 
-Watch the Node Tree as you run the synths in order.
+Observe a Node Tree enquanto você roda os sintetizadores na ordem.
 
 \begin{figure}[h]
 \centerline{
 	\includegraphics[scale=0.5]{fig-node-tree.png}}
-\caption{Synth nodes in the Node Tree window}
+\caption{Nós de sintetizador na janela da Node Tree}
 \label{fig:node-tree}
 \end{figure}
 
-Synth nodes in the Node Tree window run from \emph{top to bottom}. The most recent synths get added to the top by default. In figure \ref{fig:node-tree}, you can see that \texttt{"noise"} is on top, \texttt{"filter"} comes second, and \texttt{"masterOut"} comes last. This is the right order we want: reading from top to bottom, the noise source flows into the filter, and result of the filter flows into the master bus. If you now try running the example again, but evaluating the lines \texttt{m}, \texttt{f}, and \texttt{n} in reverse order, you will hear nothing, because the signals are being calculated in the wrong order.
+Nós de sintetizador na janela da Node Tree correm \emph{de cima para baixo}. Os sintetizadores mais recentes são adicionados ao topo por definição. Na figura \ref{fig:node-tree}, você pode ver que  \texttt{“ruído”} está no topo, \texttt{“filtro”} vem em segundo e \texttt{“saidaMaster"} vem por último. Esta é a ordem certa que queremos: lendo de cima para baixo, a fonte de ruído flui para o filtro e o resultado do filtro flui para o canal master. Se você tentar rodar o exemplo de novo, mas rodando as linhas \texttt{m}, \texttt{f} e \texttt{n} em ordem inversa, você não ouvirá nada, porque os sinais estão sendo calculados na ordem errada.
 
-Evaluating the right lines in the right order is fine, but it might get tricky as your code becomes more complex. In order to make this job easier, SuperCollider allows you to explicitly define where to place synths in the Node Tree. For this we use the \texttt{target} and \texttt{addAction} arguments.
+Rodas as linhas certas na ordem certa é bom, mas pode se tornar capciosa se seu código se tornar mais complexo. Para facilitar este trabalho, o SuperCollider permite que você defina explicitamente onde posicionar os sintetizadores na Árvore de Nós. Para isso, usamos os argumentos \texttt{target} (“destino”) e \texttt{addAction} (“adicionar ação”).
 
 \begin{lstlisting}[style=SuperCollider-IDE, basicstyle=\scttfamily\footnotesize]
-n = Synth("noise", addAction: 'addToHead');
-m = Synth("masterOut", addAction: 'addToTail');
-f = Synth("filter", target: n, addAction: 'addAfter');
+n = Synth(“ruido”, addAction: 'addToHead');
+m = Synth(“saidaMaster", addAction: 'addToTail');
+f = Synth(“filtro”, target: n, addAction: 'addAfter');
 \end{lstlisting}
-Now, no matter in what order you execute the lines above, you can be sure that nodes will fall in the right places. The \texttt{"noise"} synth is explicitly told to be added to the head of the Node Tree; \texttt{"masterOut"} is added to the tail; and \texttt{filter} is explicitly added right after target \texttt{n} (the noise synth).
+Agora não importa em que ordem você executar as linhas acima, você pode ter certeza que os nós cairão nos lugares certos. Ao sintetizador \texttt{"noise"} pede-se explicitamente que seja adicionado ao início (“Head”, cabeça) da Node Tree; \texttt{“saidaMaster"} é adicionada ao final (“Tail”, cauda); e o \texttt{filtro} é explicitamente adicionado logo depois (“After”) do destino (“target”) \texttt{n} (o sintetizador de ruído).
 
-\subsection{Groups}
+\subsection{Grupos}
 
-When you start to have lots of synths---some of them for source sounds, others for effects, or whatever you need---it may be a good idea to organize them into groups. Here's a basic example:
+Quando você começa a ter um monte de sintetizadores---alguns para fontes sonoras, outros para efeitos ou o que você precisar---pode ser uma boa organizá-los em grupos. Eis um exemplo básico:
 
 \begin{lstlisting}[style=SuperCollider-IDE, basicstyle=\scttfamily\footnotesize]
-// Keep watching everything in the NodeTree
+// Fique observando tudo que acontece na Node Tree
 s.plotTree;
 
-// Create some buses
-~reverbBus = Bus.audio(s, 2);
-~masterBus = Bus.audio(s, 2);
+// Criar alguns buses
+~busReverb = Bus.audio(s, 2);
+~busMaster = Bus.audio(s, 2);
 
-// Define groups
+// Definir grupos
 (
-~sources = Group.new;
-~effects = Group.new(~sources, \addAfter);
-~master = Group.new(~effects, \addAfter);
+~fontes = Group.new;
+~efeitos = Group.new(~fontes, \addAfter);
+~master = Group.new(~efeitos, \addAfter);
 )
 
-// Run all synths at once
+// Rodar todos os sintetizadores de uma vez
 (
-// One source sound
+// Uma fonte sonora
 {
-  Out.ar(~reverbBus, SinOsc.ar([800, 890])*LFPulse.ar(2)*0.1)
-}.play(target: ~sources);
+  Out.ar(~busReverb, SinOsc.ar([800, 890])*LFPulse.ar(2)*0.1)
+}.play(target: ~fontes);
 
-// Another source sound
+// Outra fonte sonora
 {
-  Out.ar(~reverbBus, WhiteNoise.ar(LFPulse.ar(2, 1/2, width: 0.05)*0.1))
-}.play(target: ~sources);
+  Out.ar(~busReverb, WhiteNoise.ar(LFPulse.ar(2, 1/2, width: 0.05)*0.1))
+}.play(target: ~fontes);
 
-// Some reverb
+// Um pouco de reverb
 {
-  Out.ar(~masterBus, FreeVerb.ar(In.ar(~reverbBus, 2), mix: 0.5, room: 0.9))
-}.play(target: ~effects);
+  Out.ar(~busMaster, FreeVerb.ar(In.ar(~busReverb, 2), mix: 0.5, room: 0.9))
+}.play(target: ~efeitos);
 
-// Some silly master volume control with mouse
+// Um controle bobo de volume com o mouse
 {
-  Out.ar(0, In.ar(~masterBus, 2) * MouseY.kr(0, 1))
+  Out.ar(0, In.ar(~busMaster, 2) * MouseY.kr(0, 1))
 }.play(target: ~master);
 )
 \end{lstlisting}
 
-For more information about order of execution, look up the Help files ``Synth,'' ``Order of Execution,'' and ``Group.''
+Para mais informações sobre ordem de execução, olhe os arquivos de Ajuda “Synth”, “Order of Execution” e “Group”.
